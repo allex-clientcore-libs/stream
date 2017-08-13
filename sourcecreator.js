@@ -80,29 +80,49 @@ function createGenericStreamSource(lib){
         this.buffer.drain(this.sink.onStream.bind(this.sink));
       }
     };
-    function chainer(chainobj,filter,index){
-      if(index===0){
-        chainobj.ret = filter;
-        chainobj.last = filter;
-        return;
-      }
-      if(!lib.isFunction(filter.onStream)){
-        throw 'Filter chain link at index '+index+' is not a StreamSink';
-      }
-      if(!lib.isFunction(chainobj.last.setSink)){
-        throw 'Filter chain link at index '+(index-1)+' is not a StreamSource';
-      }
-      chainobj.last.setSink(filter);
-      chainobj.last = filter;
-    }
     StreamSource.chain = function(filterarry){
-      var chainobj = {ret: null, last: null}, ret;
-      filterarry.forEach(chainer.bind(null, chainobj));
-      ret = chainobj.ret;
-      chainobj = null;
-      return ret;
+      console.log('returning new StreamChain');
+      return new StreamChain(filterarry);
     };
     StreamSource.prototype.Coder = StreamCoder;
+
+    function chainer(filter,index,filters){
+      var last;
+      if(index===0){
+        return;
+      }
+      last = filters[index-1];
+      if(!lib.isFunction(filter.onStream)){
+        throw new Error('Filter chain link at index '+index+' is not a StreamSink');
+      }
+      if(!lib.isFunction(last.setSink)){
+        throw new Error('Filter chain link at index '+(index-1)+' is not a StreamSource');
+      }
+      last.setSink(filter);
+    }
+    function StreamChain (filterarry) {
+      this.filters = filterarry;
+      filterarry.forEach(chainer);
+    }
+    StreamChain.prototype.destroy = function () {
+      if (this.filters) {
+        lib.arryDestroyAll(this.filters);
+      }
+      this.filters = null;
+    };
+    StreamChain.prototype.handleStreamItem = function (item) {
+      if (!(this.filters && this.filters.length)) {
+        return;
+      }
+      return this.filters[0].handleStreamItem(item);
+    };
+    StreamChain.prototype.onStream = StreamChain.prototype.handleStreamItem;
+    StreamChain.prototype.setSink = function (sink) {
+      if (!(this.filters && this.filters.length)) {
+        return;
+      }
+      return this.filters[this.filters.length-1].setSink(sink);
+    };
     return StreamSource;
   };
 }
