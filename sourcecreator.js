@@ -81,7 +81,6 @@ function createGenericStreamSource(lib){
       }
     };
     StreamSource.chain = function(filterarry){
-      console.log('returning new StreamChain');
       return new StreamChain(filterarry);
     };
     StreamSource.prototype.Coder = StreamCoder;
